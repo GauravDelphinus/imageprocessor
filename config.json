@@ -1,0 +1,7 @@
+{
+	"hostname" : "http://localhost",
+	"port" : "5678",
+	"path" : {
+		"tmpDir" : "../tmp/"
+	}
+}

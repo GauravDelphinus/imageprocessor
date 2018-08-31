@@ -1,0 +1,21 @@
+{
+  "name": "imageprocessor",
+  "version": "1.0.0",
+  "description": "Image Processor that uses ImageMagick",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cookie-parser": "^1.4.3",
+    "datauri": "^1.1.0",
+    "express": "^4.16.3",
+    "fs": "0.0.1-security",
+    "helmet": "^3.13.0",
+    "parse-data-uri": "^0.2.0",
+    "path": "^0.12.7",
+    "tmp": "0.0.33"
+  }
+}
