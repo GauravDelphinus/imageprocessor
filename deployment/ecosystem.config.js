@@ -111,7 +111,7 @@ module.exports = {
     },
     production : {
     	user : 'node',
-    	host : 'ec2-18-222-97-40.us-east-2.compute.amazonaws.com',
+    	host : 'ec2-18-191-236-241.us-east-2.compute.amazonaws.com',
 		ref  : 'origin/master',
 		repo : 'git@github.com:ezeeideas/imageprocessor.git',
 		path : '/var/www/imageprocessor/production',
