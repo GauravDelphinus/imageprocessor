@@ -1,9 +1,14 @@
 'use strict';
 
+const path = require("path");
+
+global.appRoot = path.normalize(path.resolve(__dirname) + "./");
+
 const helmet = require("helmet");
 const cluster = require('cluster'); 
 const config = require("./config");
-const path = require("path");
+
+const logger = require("./logger");
 
 module.exports = function(callback) {
 	
@@ -11,7 +16,7 @@ module.exports = function(callback) {
 	const bodyParser = require('body-parser');
 
 	const app = express();
-	global.appRoot = path.normalize(path.resolve(__dirname) + "./");
+	
 
 
 	app.enable('trust proxy');
@@ -32,7 +37,7 @@ module.exports = function(callback) {
 	app.listen(config.port, function() {
 		//logger.info("Node Server, Environment: " + dynamicConfig.nodeEnv + ", Listening on " + dynamicConfig.nodeHostname + ", port " + config.port + ", Connected to Neo4j Database: " + dynamicConfig.dbHostname);
 		//logger.info("Application Root: " + global.appRoot);
-		console.log("Started Cluster #" + cluster.worker.id + " - Listening on port " + config.port)
+		logger.debug("Started Cluster #" + cluster.worker.id + " - Listening on port " + config.port)
 		return callback(null, app);
 	});
 };

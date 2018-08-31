@@ -3,11 +3,13 @@ const execFileSync = require("child_process").execFileSync;
 const tmp = require("tmp");
 const config = require("./config");
 const fs = require("fs");
+const logger = require("./logger");
 
 module.exports = {
 	convertImageFromPath: function (sourceImagePath, targetImagePath, imArgs, next) {
+		logger.debug("convertImageFromPath, sourceImagePath: " + sourceImagePath + ", targetImagePath: " + targetImagePath);
 		imArgs.unshift(sourceImagePath);
-		imArgs.push(targetImagePath);
+		imArgs.push(targetImagePath	);
 
 		execFile("convert", imArgs, (error, stdout, stderr) => {
 			if (error) {
@@ -19,32 +21,42 @@ module.exports = {
 	},
 
 	convertImageFromData: function (sourceImageData, imArgs, next) {
+		logger.debug("convertImageFromData, imArgs: " + JSON.stringify(imArgs));
 		const createTempFilename = this.createTempFilename;
 		const dataURItoFile = this.dataURItoFile;
 		const convertImageFromPath = this.convertImageFromPath;
 
+		logger.debug("calling createTempFilename 1 ...");
 		createTempFilename(function(err, sourceImagePath) {
+			logger.debug("callback from createTempFilename 1, err: " + err);
 			if (err) {
 				return next(err);
 			}
 
+			logger.debug("calling createTempFilename 2...");
 			createTempFilename(function(err, targetImagePath) {
+				logger.debug("callback from createTempFilename 2, err: " + err);
 				if (err) {
 					return next(err);
 				}
 
+				logger.debug("calling dataURItoFile...");
 				dataURItoFile(sourceImageData, sourceImagePath, function(err) {
+					logger.debug("callback from dataURItoFile, err: " + err);
 		  			if (err) {
 		  				return next(err);
 		  			}
 
+		  			logger.debug("calling convertImageFromPath...");
 		  			convertImageFromPath(sourceImagePath, targetImagePath, imArgs, function(err) {
+		  				logger.debug("callback from convertImageFromPath, err: " + err);
 		  				if (err) {
 		  					return next(err);
 		  				}
 
 		  				const DataURI = require('datauri');
 						const datauri = new DataURI();
+						logger.debug("calling datauri.encode, targetImagePath: " + targetImagePath);
 						datauri.encode(targetImagePath, next);
 		  			});
 		  		});

@@ -1,6 +1,6 @@
 const cluster = require('cluster'); 
 const app = require('./app');
-//const logger = require("./logger");
+const logger = require("./logger");
 
 if (cluster.isMaster) {
         // // Count the machine's CPUs
