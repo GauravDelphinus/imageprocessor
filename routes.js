@@ -10,7 +10,7 @@ var routes = function() {
 
 	router.route("/convert") // /api/convert ROUTE
 
-		.post(function(req, res){
+		.get(function(req, res){
 
 			logger.debug("Cluster #" + cluster.worker.id + " - POST received on /api/convert");
 
