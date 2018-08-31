@@ -7,7 +7,7 @@
 pushd `dirname $0` > /dev/null
 SCRIPT_PATH="$( cd "$(dirname "$0")" ; pwd -P )"
 popd > /dev/null
-PROJECT_ROOT="${SCRIPT_PATH}/../../"	
+PROJECT_ROOT="${SCRIPT_PATH}/../"	
 
 if [ ! -L "${PROJECT_ROOT}/../current" ]; then
 	if [ -d "${PROJECT_ROOT}/../source" ]; then
