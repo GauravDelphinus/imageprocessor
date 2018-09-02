@@ -3,50 +3,48 @@ var imageProcessor = require("./imageProcessor");
 const cluster = require('cluster'); 
 const logger = require("./logger");
 var express = require("express");
+const fileUtils = require("./fileUtils");
 
 var routes = function() {
 
 	var router = express.Router();
 
-	router.route("/convert") // /api/convert ROUTE
+	router.route("/processimage") // /api/processimage ROUTE
 
 		.get(function(req, res){
 
-			logger.debug("Cluster #" + cluster.worker.id + " - POST received on /api/convert");
+			logger.debug("Cluster #" + cluster.worker.id + " - GET received on /api/processimage");
 
-			if (req.body.sourceImageData) {
-				//received image data - first store data to local file
-				imageProcessor.convertImageFromData(req.body.sourceImageData, req.body.imArgs, function(err, targetImageData) {
-					logger.debug("callback from convertImageFromData, err: " + err);
+			if (req.body.imArgs && req.body.imArgs.constructor === Array && req.body.imArgs.length > 0) {
+				imageProcessor.normalizeArgs(req.body.imArgs, function(err, normalizedArgs, inputTmpFiles, outputTmpFile) {
 					if (err) {
-						return res.sendStatus(500); //something bad happened
+						return res.sendStatus(500);
 					}
 
-					let output = {
-						targetImageData: targetImageData
-					};
-					logger.debug("returning to client, cluster #" + cluster.worker.id + ", calling res.json");
-					return res.json(output);
-				});
-			} else if (req.body.sourceImagePath && req.body.targetImagePath) {
-				//received image path - process directly
-				imageProcessor.convertImageFromPath(req.body.sourceImagePath, req.body.targetImagePath, req.body.imArgs, function(err) {
-					if (err) {
-						console.log("Cluster #" + cluster.worker.id + 'encounteed some error: ' + err);
-						return res.sendStatus(400);
-					}
+					imageProcessor.execute(req.body.command, normalizedArgs, outputTmpFile, function(err, result) {
+						if (err) {
+							return res.sendStatus(500);
+						}
 
-					let output = {
-						targetImagePath: req.body.targetImagePath
-					};
+						if (inputTmpFiles && inputTmpFiles.length > 0) {
+							fileUtils.deleteTmpFiles(inputTmpFiles);
+						}
+						
+						if (outputTmpFile) {
+							fileUtils.deleteTmpFiles(outputTmpFile);
+						}
 
-					console.log("Cluster #" + cluster.worker.id + "Success, sending status 200");
-					return res.json(output);
+						let output = {
+							stdout: result.stdout,
+							outputFileData: result.outputFileData
+						};
+
+						return res.json(output);
+					});
 				});
+			} else {
+				return res.sendStatus(400); //invalid parameters
 			}
-			
-			//invalid param
-			//return res.sendStatus(400);
 		});
 
 	return router;

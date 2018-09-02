@@ -1,91 +1,128 @@
 const execFile = require('child_process').execFile;
-const execFileSync = require("child_process").execFileSync;
 const tmp = require("tmp");
 const config = require("./config");
 const fs = require("fs");
 const logger = require("./logger");
+const async = require("async");
+const fileUtils = require("./fileUtils");
 
 module.exports = {
-	convertImageFromPath: function (sourceImagePath, targetImagePath, imArgs, next) {
-		logger.debug("convertImageFromPath, sourceImagePath: " + sourceImagePath + ", targetImagePath: " + targetImagePath);
-		imArgs.unshift(sourceImagePath);
-		imArgs.push(targetImagePath	);
+	/**
+		Process the input IM arguments and look for any input and output files
 
-		execFile("convert", imArgs, (error, stdout, stderr) => {
-			if (error) {
-		    	return next(error);
-		  	} else {
-		  		return next(0);
-		  	}
-	  	});
-	},
+		Input files must be in the form of image data, so convert those to tmp files by
+		writing the image data to a temp file
 
-	convertImageFromData: function (sourceImageData, imArgs, next) {
-		logger.debug("convertImageFromData, imArgs: " + JSON.stringify(imArgs));
-		const createTempFilename = this.createTempFilename;
-		const dataURItoFile = this.dataURItoFile;
-		const convertImageFromPath = this.convertImageFromPath;
+		Output file (at max 1) must be just a tag "output", so create a tmp file that
+		we can use to write the output to.
+	**/
+	normalizeArgs: function(imArgs, callback) {
+		var functionList = [];
+		for (let i = 0; i < imArgs.length; i++) {
+			functionList.push(async.apply(this.processOneArg, imArgs[i]));
+		}
 
-		logger.debug("calling createTempFilename 1 ...");
-		createTempFilename(function(err, sourceImagePath) {
-			logger.debug("callback from createTempFilename 1, err: " + err);
+		async.series(functionList, function(err, finalArgs) {
 			if (err) {
-				return next(err);
+				return callback(err);
 			}
 
-			logger.debug("calling createTempFilename 2...");
-			createTempFilename(function(err, targetImagePath) {
-				logger.debug("callback from createTempFilename 2, err: " + err);
-				if (err) {
-					return next(err);
+			let inputTmpFiles = [];
+			let outputTmpFile = null;
+			let normalizedArgs = [];
+
+			/**
+				Process the input arguments, and normalize them into flag ImageMagic acceptable
+				arguments.  Use the INPUT_FILE or OUTPUT_FILE tags to figure out which files were
+				created as tmp files so we can pass them back to the caller for deletion after the
+				processing is completed.
+			**/
+			for (let i = 0; i < finalArgs.length; i++) {
+				if (finalArgs[i].type == "INPUT_FILE") {
+					inputTmpFiles.push(finalArgs[i].value);
+				} else if (finalArgs[i].type == "OUTPUT_FILE") {
+					if (outputTmpFile != null) {
+						//Error - cannot have more than one output file
+						return callback(new Error("Cannot have more than one OUTPUT_FILE in the imArgs"));
+					}
+					outputTmpFile = finalArgs[i].value;
 				}
 
-				logger.debug("calling dataURItoFile...");
-				dataURItoFile(sourceImageData, sourceImagePath, function(err) {
-					logger.debug("callback from dataURItoFile, err: " + err);
-		  			if (err) {
-		  				return next(err);
-		  			}
+				normalizedArgs.push(finalArgs[i].value);
+			}
 
-		  			logger.debug("calling convertImageFromPath...");
-		  			convertImageFromPath(sourceImagePath, targetImagePath, imArgs, function(err) {
-		  				logger.debug("callback from convertImageFromPath, err: " + err);
-		  				if (err) {
-		  					return next(err);
-		  				}
+			return callback(null, normalizedArgs, inputTmpFiles, outputTmpFile);
+		});
+	},
 
-		  				const DataURI = require('datauri');
-						const datauri = new DataURI();
-						logger.debug("calling datauri.encode, targetImagePath: " + targetImagePath);
-						datauri.encode(targetImagePath, next);
-		  			});
-		  		});
+	/**
+		Process each arg in the input imArg list.
+
+		If the input is of type image data, create a temp file to store that image,
+		and tag that arg as an INPUT_FILE
+
+		If the input is just the strings "OUTPUT_FILE", create a temp file for this argument
+		and tag it as OUTPUT_FILE
+
+		Otherwise, just tag it as a REGULAR_ARGUMENT
+	**/
+	processOneArg: function(imArg, callback) {	
+		if (String(imArg).startsWith("data:image/")) {
+			fileUtils.createTempFilename(function(err, tmpFileName) {
+				if (err) {
+					return callback(err);
+				}
+
+				fileUtils.dataURItoFile(imArg, tmpFileName, function(err) {
+					if (err) {
+						return callback(err);
+					}
+
+					return callback(null, {type: "INPUT_FILE", value: tmpFileName});
+				});
 			});
-		});
+		} else if (String(imArg).startsWith("OUTPUT_FILE")) {
+			fileUtils.createTempFilename(function(err, tmpFileName) {
+				if (err) {
+					return callback(err);
+				}
+
+				return callback(null, {type: "OUTPUT_FILE", value: tmpFileName});
+			});
+		} else {
+			return callback(null, {type: "REGULAR_ARGUMENT", value: imArg});
+		}
 	},
 
-	//core routine that writes from a dataURI to a provided
-	//file, and fails if the file doesn't exist
-	dataURItoFile: function(dataURI, filename, callback) {
-		var parseDataURI = require("parse-data-uri");
-		var parsed = parseDataURI(dataURI);
-					
-		var buffer = parsed.data;
+	/**
+		Actual, final call to execute the system command.  Be very careful to make
+		sure that the input command and normalizedArgs are going to be compatible with
+		ImageMagick running on this computer.
 
-		fs.writeFile(filename, buffer, function(err) {
-			return callback(err);
-		});
-	},
-
-	//core routine to generate a new temp file name
-	//callback returns either an err, or 0 along with the created path name
-	createTempFilename: function(callback, prefix = "") {
-		tmp.tmpName({ dir: global.appRoot + config.path.tmpDir, prefix: prefix }, function _tempNameGenerated(err, tmpPath) {
-		    if (err) {
+		TODO: Add validation checks on inputs.
+	**/
+	execute: function(command, normalizedArgs, outputTmpFile, callback) {		
+		execFile(command, normalizedArgs, (err, stdout, stderr) => {
+			if (err) {
 		    	return callback(err);
-		    }
-		 	
-		 	return callback(0, tmpPath);
-		});
+		  	} else {
+		  		if (outputTmpFile) {
+		  			//In case the output was a tmp file, create the image data
+		  			//from the output and pass back to caller, so we can send back to client.
+		  			const DataURI = require('datauri');
+					const datauri = new DataURI();
+					datauri.encode(outputTmpFile, function(err, outputFileData) {
+						if (err) {
+							return callback(err);
+						}
+
+						return callback(null, {stdout: stdout, outputFileData: outputFileData});
+					});
+		  		} else {
+		  			return callback(null, {stdout: stdout, outputFileData: null});
+		  		}
+		  	}
+	  	});
+	  	
 	}
-}
+};
