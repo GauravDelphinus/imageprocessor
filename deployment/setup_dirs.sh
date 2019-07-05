@@ -30,3 +30,4 @@ fi
 mkdir ${PROJECT_ROOT}/../tmp; # temporary storage
 mkdir ${PROJECT_ROOT}/../log;  # all application logs
 
+ls
